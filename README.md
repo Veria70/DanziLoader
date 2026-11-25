@@ -1,8 +1,19 @@
+# DanziLoader
+
+Windows frame-pacing experiments based on [victory-perf at 97c3aa2](https://github.com/vitutu1/victory-perf/tree/97c3aa24263b90fa6691fca8ca88fca179593a19).
+The renderer, lighting stand-ins and in-game functionality are inherited from upstream.
+
+**Local baseline (25 November 2026).** In a stationary prison-room sample on a Ryzen 9 9950X3D and RTX 5080, the Series S profile at 50% render scale produced 7.79 FPS over 240 consecutive engine-present intervals. Median interval: 127.8 ms. 95th percentile: 147.0 ms. None of those intervals met the 40 ms target. This is a checkpoint-specific measurement and does not establish a speed gain over upstream. The target is sustained 25 FPS with visible scene geometry and materials.
+
+The window caption shows the build version, FPS and frame time. Upstream credits and licensing are preserved below.
+
+## Upstream project
+
 # victory-perf
 
 A performance- and lighting-focused Windows compatibility layer for running Xbox Series X|S (Scarlett) GDK titles natively on PC, derived from [fxceless/victory-fork](https://github.com/fxceless/victory-fork) and [Marvisak/VIctory](https://github.com/Marvisak/VIctory).
 
-The project combines a native x86-64 PE32+ loader, console HLE modules (`xgameruntime`, `kernelx`, `d3d12_xs`, GameInput), a `d3d12_xs` → host D3D12 graphics backend, and an RDNA2 (GFX10) → DXIL shader recompiler, with targeted CPU/GPU synchronization optimizations, ahead-of-time shader precompilation, lighting stand-ins for shadowed interiors, Series S overlay compositing, and keyboard/mouse support.
+The project combines a native x86-64 PE32+ loader, console HLE modules (`xgameruntime`, `kernelx`, `d3d12_xs`, GameInput), a `d3d12_xs` â†’ host D3D12 graphics backend, and an RDNA2 (GFX10) â†’ DXIL shader recompiler, with targeted CPU/GPU synchronization optimizations, ahead-of-time shader precompilation, lighting stand-ins for shadowed interiors, Series S overlay compositing, and keyboard/mouse support.
 
 > **Asset policy:** This repository contains **no game files, executables, keys, or proprietary assets**. Users must supply their own files outside the repository. Not affiliated with or endorsed by any game developer, publisher, or console vendor.
 
@@ -18,12 +29,12 @@ Tested on one machine:
 
 | Stage | Status | Notes |
 | --- | --- | --- |
-| PE32+ loader & GDK HLE (`kernelx`, `xgameruntime`) | ✅ Working | Runs x86-64 title code natively; offline profile, saves, and Series S/X profiles |
-| Boot, intro, and menus | ✅ Working | Runs at 30 fps target with audio and input |
-| Prologue & interior gameplay | ✅ Playable | Character movement, HUD, pause menu, gamepad and keyboard/mouse input |
-| Frame rate (Series S, 50% render scale) | 🟡 4.5–14+ fps | **14 fps (71 ms)** prison corridor, **11 fps (95 ms)** heist interior, **9 fps (115 ms)** cell; **4.5–6.5 fps** in heavy scenes (~10,000 draws/frame) — up from 2.5–4 fps baseline |
-| Shadowed interior lighting | 🟡 Lit via stand-ins | Ambient and shadowmask stand-ins (`VICTORY_AMBIENT_STUB=1`, `VICTORY_SHADOWMASK_STUB=1`) illuminate pitch-black shadow zones; full ray-traced lighting is still WIP |
-| Stability (`--console series-s`) | ✅ Stable in testing | Avoids AMD FFX FSR4 `DXGI_ERROR_INVALID_CALL` crash via `VICTORY_OWN_UPSCALER=1`; no screen flicker observed |
+| PE32+ loader & GDK HLE (`kernelx`, `xgameruntime`) | âœ… Working | Runs x86-64 title code natively; offline profile, saves, and Series S/X profiles |
+| Boot, intro, and menus | âœ… Working | Runs at 30 fps target with audio and input |
+| Prologue & interior gameplay | âœ… Playable | Character movement, HUD, pause menu, gamepad and keyboard/mouse input |
+| Frame rate (Series S, 50% render scale) | ðŸŸ¡ 4.5â€“14+ fps | **14 fps (71 ms)** prison corridor, **11 fps (95 ms)** heist interior, **9 fps (115 ms)** cell; **4.5â€“6.5 fps** in heavy scenes (~10,000 draws/frame) â€” up from 2.5â€“4 fps baseline |
+| Shadowed interior lighting | ðŸŸ¡ Lit via stand-ins | Ambient and shadowmask stand-ins (`VICTORY_AMBIENT_STUB=1`, `VICTORY_SHADOWMASK_STUB=1`) illuminate pitch-black shadow zones; full ray-traced lighting is still WIP |
+| Stability (`--console series-s`) | âœ… Stable in testing | Avoids AMD FFX FSR4 `DXGI_ERROR_INVALID_CALL` crash via `VICTORY_OWN_UPSCALER=1`; no screen flicker observed |
 
 *Caveats:* All benchmark numbers above are self-reported on a single Ryzen 7 9800X3D + RTX 4070 SUPER setup using `--console series-s` with `VICTORY_OWN_UPSCALER=1` and `VICTORY_RENDER_SCALE=0.5`. Lighting stand-ins approximate missing bounce/shadow light rather than reproducing console ray tracing.
 
@@ -36,8 +47,8 @@ Tested on one machine:
 - **Scoped indirect clamp barriers (`VICTORY_CLAMP_SCOPED`, default on):** Replaces global full-GPU UAV drains around `ExecuteIndirect` argument clamps with resource-scoped UAV barriers on dedicated argument/count buffers and removes the redundant post-clamp global barrier.
 - **Per-list UAV barrier deduplication (`VICTORY_BARRIER_MERGE`, default on):** Tracks `uav_pending` (including image stores) per `HostList` and skips redundant global UAV barriers across `barrier_groups` and clamp passes.
 - **Expanded indirect clamp windows & light PSO restore:** Enables `VICTORY_INDIRECT_WINDOW` by default, increases `VICTORY_INDIRECT_WINDOW_MOST` from `64` to `4096`, and enables `VICTORY_CLAMP_LIGHT_RESTORE` by default so graphics root bindings survive clamp dispatches.
-- **CPU stall & spike elimination (`crates/victory-gpu/src/host.rs`, `resource.rs`, `texture.rs`):** Removed O(N²) loops in `host.rs`, moved `heap_buffers` pruning/refresh to 1/16th incremental work per frame (removing ~142 ms periodic spikes), relaxed VRAM texture eviction (`EVICT_IDLE_FRAMES=120`), enabled parallel refresh flushes, and enabled overlapped texture refreshes / fast hashing (`VICTORY_TEXTURE_OVERLAP`, `VICTORY_FAST_HASH`, `VICTORY_KNOWN_WRITES`, all default on).
-- **Ahead-of-time shader precompilation (`apps/victory/src/precompile.rs`, `crates/victory-gpu/src/precompile.rs`, `shader_cache.rs`):** Precompiles cached RDNA2 → DXIL shader pipelines ahead of runtime to cut first-use hitches.
+- **CPU stall & spike elimination (`crates/victory-gpu/src/host.rs`, `resource.rs`, `texture.rs`):** Removed O(NÂ²) loops in `host.rs`, moved `heap_buffers` pruning/refresh to 1/16th incremental work per frame (removing ~142 ms periodic spikes), relaxed VRAM texture eviction (`EVICT_IDLE_FRAMES=120`), enabled parallel refresh flushes, and enabled overlapped texture refreshes / fast hashing (`VICTORY_TEXTURE_OVERLAP`, `VICTORY_FAST_HASH`, `VICTORY_KNOWN_WRITES`, all default on).
+- **Ahead-of-time shader precompilation (`apps/victory/src/precompile.rs`, `crates/victory-gpu/src/precompile.rs`, `shader_cache.rs`):** Precompiles cached RDNA2 â†’ DXIL shader pipelines ahead of runtime to cut first-use hitches.
 
 ### Modules Ported & Adapted (GPL-3.0-or-later)
 Integrated and adapted from [ZigZagBoi1/ScarlettPort](https://github.com/ZigZagBoi1/ScarlettPort) (`runtime/victory`, GPL-3.0-or-later):
@@ -92,9 +103,9 @@ See `docs/architecture.md` and `docs/asset-policy.md` for architecture notes and
 
 Full upstream git history is preserved in this repository.
 
-- **[Marvisak/VIctory](https://github.com/Marvisak/VIctory)** (GPL-3.0-or-later) — foundational PE32+ loader, runtime HLE, `d3d12_xs` graphics layer, BCPack/swizzle texture decoders, and RDNA2 → DXIL shader recompiler.
-- **[fxceless/victory-fork](https://github.com/fxceless/victory-fork)** (GPL-3.0-or-later) — direct upstream base adding world rendering, shader optimizations, card buffers, relay threading, and in-place memory work.
-- **[ZigZagBoi1/ScarlettPort](https://github.com/ZigZagBoi1/ScarlettPort)** (GPL-3.0-or-later) — source of ported GPL-3.0-or-later modules and design ideas listed above.
-- **[ivall/xcl](https://github.com/ivall/xcl)** (GPL-2.0-only) — referenced solely for behavioral comparison; no GPL-2.0-only code is included.
+- **[Marvisak/VIctory](https://github.com/Marvisak/VIctory)** (GPL-3.0-or-later) â€” foundational PE32+ loader, runtime HLE, `d3d12_xs` graphics layer, BCPack/swizzle texture decoders, and RDNA2 â†’ DXIL shader recompiler.
+- **[fxceless/victory-fork](https://github.com/fxceless/victory-fork)** (GPL-3.0-or-later) â€” direct upstream base adding world rendering, shader optimizations, card buffers, relay threading, and in-place memory work.
+- **[ZigZagBoi1/ScarlettPort](https://github.com/ZigZagBoi1/ScarlettPort)** (GPL-3.0-or-later) â€” source of ported GPL-3.0-or-later modules and design ideas listed above.
+- **[ivall/xcl](https://github.com/ivall/xcl)** (GPL-2.0-only) â€” referenced solely for behavioral comparison; no GPL-2.0-only code is included.
 
 Licensed under **GPL-3.0-or-later**. See [LICENSE](LICENSE).
